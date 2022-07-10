@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en-us">
+  <head>
+    <style>
+      body {
+          margin: 0;
+          height: 100%;
+          overflow: hidden;
+      }
+    </style>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Proj</title>
+  </head>
+  <body>
+    <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+    <script type='text/javascript'>
+      var Module = {
+        preRun: [],
+        postRun: [],
+        print: (function() {})(),
+        printErr: function(text) {},
+        canvas: (function() {
+          var canvas = document.getElementById('canvas');
+          canvas.addEventListener("webglcontextlost", function(e) { 
+			alert('WebGL context lost. You will need to reload the page.'); 
+			e.preventDefault(); 
+			}, false);
+          return canvas;
+        })(),
+        setStatus: function(text) {},
+        totalDependencies: 0,
+        monitorRunDependencies: function(left) {},
+      };
+      function js_resizeCanvas()
+      {
+          let pixelRatio = window.devicePixelRatio;
+          let canvas = document.getElementById('canvas');
+          canvas.style.width = window.innerWidth + "px";
+          canvas.style.height = window.innerHeight + "px";
+          canvas.width = Math.round(window.innerWidth * pixelRatio);
+          canvas.height = Math.round(window.innerHeight * pixelRatio);
+       }
+       window.addEventListener('resize', js_resizeCanvas, false);
+
+    </script>
+    <script async type="text/javascript" src="./App.js"></script>
+  </body>
+</html>

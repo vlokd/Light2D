@@ -1,0 +1,93 @@
+cmake_minimum_required (VERSION 3.8)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+set(DIR_MODE $<$<CONFIG:Debug>:debug>$<$<CONFIG:Release>:release>)
+set(COMMON_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+cmake_policy(SET CMP0092 NEW) #no /W3 from cmake
+
+set(IMGUI_SOURCES 
+"lib/imgui/imgui.cpp" 
+"lib/imgui/imgui_tables.cpp"
+"lib/imgui/imgui_widgets.cpp" 
+"lib/imgui/imgui_draw.cpp" 
+"lib/imgui/imgui_widgets.cpp" 
+"lib/imgui/imgui_demo.cpp"
+"lib/imgui/backends/imgui_impl_sdl.cpp" 
+#"lib/imgui/backends/imgui_impl_opengl3.cpp" 
+)
+set(WIN32_ENTRY_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/main_win32.cpp)
+set(EMSCRIPTEN_ENTRY_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/main_emscripten.cpp)
+set(PROJECT_DESKTOP_IMGUI_SRC 
+${CMAKE_CURRENT_SOURCE_DIR}/src/proj_imgui_impl_opengl3.h  
+${CMAKE_CURRENT_SOURCE_DIR}/src/proj_imgui_impl_opengl3.cpp)
+
+project (Proj)
+
+add_subdirectory(lib/fmt EXCLUDE_FROM_ALL)
+
+file(GLOB COMMON_SOURCES CONFIGURE_DEPENDS 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h)
+list(REMOVE_ITEM COMMON_SOURCES 
+${WIN32_ENTRY_SRC} ${EMSCRIPTEN_ENTRY_SRC} ${PROJECT_DESKTOP_IMGUI_SRC}
+${CMAKE_CURRENT_SOURCE_DIR}/src/droid_sans_embedded_ttf.cpp)
+
+if (EMSCRIPTEN)
+    message("Configuring for Emscripten")
+
+    list(APPEND IMGUI_SOURCES "lib/imgui/backends/imgui_impl_opengl3.cpp")
+    
+    add_executable(App ${EMSCRIPTEN_ENTRY_SRC} ${IMGUI_SOURCES} ${COMMON_SOURCES})
+    set_target_properties(App PROPERTIES CXX_STANDARD 20)
+    target_include_directories(App PRIVATE ${EMSCRIPTEN_SYSROOT}/include lib/imgui lib/glm lib src)
+	target_compile_options(App PRIVATE "-sUSE_SDL=2" "-Werror" "-Wextra" "-Wall" "-Wno-unused-parameter")
+    target_compile_definitions(App PRIVATE IMGUI_USER_CONFIG="proj_imconfig.h")
+    target_link_options(App PRIVATE "-sMIN_WEBGL_VERSION=2" "-sMAX_WEBGL_VERSION=2" "-sLLD_REPORT_UNDEFINED")
+    
+	target_link_libraries(App SDL2 fmt::fmt-header-only)
+	target_precompile_headers(App PRIVATE src/precompiled.hpp)
+
+	add_custom_command(TARGET App POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${COMMON_SRC_DIR}/index.html
+        $<TARGET_FILE_DIR:App>)
+elseif (WIN32)
+    message("Configuring for Windows")
+
+    set(PROJECT_WARN_FLAGS /W4 /WX /wd4324 /wd26812 /wd4201 /wd4127 /wd4002 /wd4100)
+    set(PROJECT_WARN_FLAG_UNUSED /wd4189)
+
+    set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
+    set(SDL2_INCLUDE_DIR $ENV{SDL2_PATH}/include)
+    set(SDL2_DEV_LINK_DIR $ENV{SDL2_PATH}/dev)
+    set(SDL2_DLL_DIR $ENV{SDL2_PATH}/${DIR_MODE})
+
+    add_library(Glad lib/glad/src/gles2.c)
+    target_include_directories(Glad PRIVATE lib/glad/include)
+
+    add_executable(App WIN32 ${WIN32_ENTRY_SRC} ${IMGUI_SOURCES} ${COMMON_SOURCES} ${PROJECT_DESKTOP_IMGUI_SRC})
+    set_target_properties(App PROPERTIES CXX_STANDARD 20)
+    target_include_directories(App PRIVATE lib/imgui ${SDL2_INCLUDE_DIR}/SDL2 lib/glad/include lib/glm lib src)
+    target_compile_options(App PRIVATE ${PROJECT_WARN_FLAGS})
+    target_compile_definitions(App PRIVATE IMGUI_USER_CONFIG="proj_imconfig.h" _CRT_SECURE_NO_WARNINGS)
+    target_compile_definitions(App PRIVATE PROJECT_BUILD_DEV)
+    target_precompile_headers(App PRIVATE src/precompiled.hpp)
+    target_link_directories(App PRIVATE ${SDL2_DEV_LINK_DIR})
+    target_link_libraries(App SDL2 SDL2main Glad fmt::fmt-header-only)
+
+    source_group("Sources" FILES ${WIN32_ENTRY_SRC} ${COMMON_SOURCES})
+
+    set_property(TARGET App PROPERTY VS_DEBUGGER_WORKING_DIRECTORY  $<TARGET_FILE_DIR:App>)
+
+    add_custom_command(TARGET App POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${SDL2_DLL_DIR}/SDL2.dll"
+        $<TARGET_FILE_DIR:App>)
+else()
+    message(FATAL_ERROR "Unsupported platform")
+endif()
+
