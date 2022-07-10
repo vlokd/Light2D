@@ -39,9 +39,9 @@ namespace app
 		glm::ivec2 renderResolution{ 0, 0 };
 
 		int maxRaysPerSample = 16;
-		int samplesPerPixel = 4;
+		int samplesPerPixel = 2;
 		float previewScale = 1.f / 4.f;
-		float renderScale = 1.f;
+		float renderScale = 1.f / 2.f;
 		float rayHitDst = 1e-4f;
 		float rayMissDst = 10.f;
 
@@ -55,7 +55,7 @@ namespace app
 		TileGridInfo tileInfo;
 		int tilesRendered = 0;
 #ifdef __EMSCRIPTEN__
-		int tilesPerFrame = 20;
+		int tilesPerFrame = 3;
 #else
 		int tilesPerFrame = 30;
 #endif
@@ -516,9 +516,19 @@ TraceResult TraceScene(vec2 pt, vec2 dir)
 	{
 		if (render->renderResolution != resolution)
 		{
+			{
+				glm::vec2 fullHD{ 1920, 1080 };
+				auto sizeRatio = glm::vec2(resolution) / fullHD;
+				auto maxRatio = std::max(sizeRatio.x, sizeRatio.y);
+				if (maxRatio > 1.5f)
+				{
+					render->renderScale = 0.25f;
+				}
+			}
+
 			render->needRebuildTargets = true;
+			render->renderResolution = resolution;
 		}
-		render->renderResolution = resolution;
 	}
 	void RenderSetShaderContent(Render* render, const std::string& content)
 	{
@@ -542,6 +552,9 @@ TraceResult TraceScene(vec2 pt, vec2 dir)
 		{
 			ImGui::DragFloat("Exposure", &render->exposure, 0.1f, 0.f, 1000.f, "%.6f");
 			ImGui::DragFloat("Gamma", &render->gamma, 0.1f, 0.f, 1000.f, "%.6f");
+			render->needRebuildTargets |= ImGui::DragFloat("Render scale", &render->renderScale, 0.1f, 1.f/8.f, 1.f, "%f", ImGuiSliderFlags_AlwaysClamp);
+			render->needRebuildTraceProgram |= ImGui::DragInt("Samples per pixel", &render->samplesPerPixel, 1.f, 1, 8, "%d", ImGuiSliderFlags_AlwaysClamp);
+			render->needRebuildTraceProgram |= ImGui::DragInt("Max rays per sample", &render->maxRaysPerSample, 1.f, 1, 16, "%d", ImGuiSliderFlags_AlwaysClamp);
 			ImGui::DragInt("Tiles per frame", &render->tilesPerFrame);
 			ImGui::Text("Steps: %d/%d", render->traceStepsCurrent, render->traceStepsTarget);
 			ImGui::EndTabItem();
